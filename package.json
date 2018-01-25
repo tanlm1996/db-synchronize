@@ -1,0 +1,16 @@
+{
+  "name": "db-sync",
+  "version": "1.0.0",
+  "description": "Synchronizaton two different schema databases",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "tanlm <luuminhtan046@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "datapumps": "^0.5.1",
+    "mysql": "^2.15.0",
+    "mysql2": "^1.5.1"
+  }
+}

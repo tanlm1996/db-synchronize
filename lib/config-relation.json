@@ -1,0 +1,20 @@
+[
+  {
+    "TABLE_NAME": "curve",
+    "COLUMN_NAME": "idWell",
+    "REFERENCED_TABLE_NAME": "well",
+    "REFERENCED_COLUMN_NAME": "idWell"
+  },
+  {
+    "TABLE_NAME": "file",
+    "COLUMN_NAME": "idUser",
+    "REFERENCED_TABLE_NAME": "user",
+    "REFERENCED_COLUMN_NAME": "idUser"
+  },
+  {
+    "TABLE_NAME": "well",
+    "COLUMN_NAME": "idFile",
+    "REFERENCED_TABLE_NAME": "file",
+    "REFERENCED_COLUMN_NAME": "idFile"
+  }
+]

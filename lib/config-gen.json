@@ -1,0 +1,24 @@
+[
+  {
+    "fromTable": "hoc_sinh",
+    "toTable": "hoc_sinh",
+    "mapping": {
+      "idHS": "idHS",
+      "name": "name",
+      "address": "address",
+      "class": "class"
+    }
+  },
+  {
+    "fromTable": "sinh_vien",
+    "toTable": "sinh_vien",
+    "mapping": {
+      "idStudent": "idStudent",
+      "name": "name",
+      "address": "address",
+      "class": "class",
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt"
+    }
+  }
+]
