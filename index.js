@@ -1,7 +1,9 @@
 'use strict'
 //Import
-var mysql = require('mysql');
-var tan = require('./lib/mapping-gen.js')
+const mysql = require('mysql');
+const mysql_promise = require('mysql2/promise');
+const graph = require('./lib/mapping-gen.js')
+const mappingGenerator = graph.compareDatabases
 
 class DBSync {
 	constructor(srConfig, desConfig){
@@ -17,7 +19,9 @@ class DBSync {
 			password: desConfig.password,
 			database: desConfig.database
 		})
-		this._mappingPath = __dirname + '/' + 'map-gen.json';
+		this._srConfig = srConfig;
+		this._desConfig = desConfig;
+		this._mappingPath = __dirname;
 		this._tasks = [];
 	}
 	set mappingPath(path) {
@@ -38,6 +42,8 @@ class DBSync {
     				"address": "address",
     				"class": "class"
 					}*/
+		const path = require('path')
+		//var mapping = require(path.join(this._mappingPath,'config-gen.json'))
 		var config = {
 						"fromTable": "sinh_vien",
 						"toTable": "sinh_vien",
@@ -49,10 +55,10 @@ class DBSync {
 						}
 					}
 
-		this._syncTable(config)	;
+		this._syncDataTable(config)	;
 		
 	}
-	_syncTable({fromTable, toTable, mapping}) {
+	_syncDataTable({fromTable, toTable, mapping}) {
 		var
     		datapumps = require('datapumps'),
     		Pump = datapumps.Pump,
@@ -104,6 +110,17 @@ class DBSync {
 	}
 	use(success,fail) {
 		this._tasks.push([success, fail])
+	}
+	mappingGenerate(path) { 
+		this.mappingPath = path;	
+		mappingGenerator(mysql_promise.createConnection(this._srConfig), mysql_promise.createConnection(this._desConfig), path)
+	}
+	schemaGen() {
+		const result = graph.getSchema(this._srConfig);
+	}
+	syncTable() {
+		let mappingConfig = require(this._mappingPath + '/origin-config.json');
+		const result = graph.syncTable(this._srConfig, this._desConfig, mappingConfig);		
 	}
 }
 module.exports = DBSync;
