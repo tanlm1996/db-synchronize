@@ -54,11 +54,11 @@ class DBSync {
 							"class": "class"
 						}
 					}
-
-		this._syncDataTable(config)	;
+		const timestamp = '2018-01-11T15:36:19.000'
+		this._syncDataTable(config, timestamp)	;
 		
 	}
-	_syncDataTable({fromTable, toTable, mapping}) {
+	_syncDataTable({fromTable, toTable, mapping}, timestamp) {
 		var
     		datapumps = require('datapumps'),
     		Pump = datapumps.Pump,
@@ -72,7 +72,7 @@ class DBSync {
 		this._desConnection.beginTransaction((err) =>{
 			//Transfer
 				pump
-					.from(this._srConnection.query(extract_query,'2018-01-11T15:36:19.000').stream())
+					.from(this._srConnection.query(extract_query, timestamp).stream())
 					.mixin(MysqlMixin(this._desConnection))
 					.process((student) => {
 						/*return pump.query('SELECT idStudent FROM sinh_vien WHERE idStudent = ? ',student.idStudent)               
@@ -116,11 +116,14 @@ class DBSync {
 		mappingGenerator(mysql_promise.createConnection(this._srConfig), mysql_promise.createConnection(this._desConfig), path)
 	}
 	schemaGen() {
-		const result = graph.getSchema(this._srConfig);
+		const result = graph.getSchema(this._srConfig, this._mappingPath);
 	}
 	syncTable() {
 		let mappingConfig = require(this._mappingPath + '/origin-config.json');
 		const result = graph.syncTable(this._srConfig, this._desConfig, mappingConfig);		
+	}
+	tableRelation() {
+		const result = graph.tableRelation(this._srConfig)		
 	}
 }
 module.exports = DBSync;
