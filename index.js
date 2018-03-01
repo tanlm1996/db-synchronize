@@ -7,18 +7,6 @@ const mappingGenerator = graph.compareDatabases
 
 class DBSync {
 	constructor(srConfig, desConfig){
-		this._srConnection = mysql.createConnection({
-			host: srConfig.host,
-			user: srConfig.user,
-			password: srConfig.password,
-			database: srConfig.database
-		})
-		this._desConnection = mysql.createConnection({
-			host: desConfig.host,
-			user: desConfig.user,
-			password: desConfig.password,
-			database: desConfig.database
-		})
 		this._srConfig = srConfig;
 		this._desConfig = desConfig;
 		this._mappingPath = __dirname;
@@ -27,13 +15,6 @@ class DBSync {
 	set mappingPath(path) {
 		this._mappingPath = path;
 	}
-	//These two get methods is just used for testing. They may be deleted after fininshed
-	get source() {
-		return this._srConnection;
-	} 
-	get destination() {
-		return this._desConnection;
-	} 
 	sync () {
 		//var config = require(_mappingPath);
 		/*var config = {
@@ -43,38 +24,50 @@ class DBSync {
     				"class": "class"
 					}*/
 		const path = require('path')
-		//var mapping = require(path.join(this._mappingPath,'config-gen.json'))
-		var config = {
-						"fromTable": "sinh_vien",
-						"toTable": "sinh_vien",
-						"mapping": {
-							"idStudent":"idStudent",
-							"name": "name",
-							"address": "address",
-							"class": "class"
-						}
-					}
+		//
 		const timestamp = '2018-01-11T15:36:19.000'
-		this._syncDataTable(config, timestamp)	;
+		let mapping = require(path.join(this._mappingPath,'schema-config.json'))
+		mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+		//this._syncDataTable(mapping[1],timestamp)
+		//
+		//const timestamp = '2018-01-11T15:36:19.000'
+		//this._syncDataTable(config, timestamp)	;
 		
 	}
-	_syncDataTable({fromTable, toTable, mapping}, timestamp) {
+	_syncDataTable({fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
+		const srConnection = mysql.createConnection({
+			host: this._srConfig.host,
+			user: this._srConfig.user,
+			password: this._srConfig.password,
+			database: this._srConfig.database
+		})
+		const desConnection = mysql.createConnection({
+			host: this._desConfig.host,
+			user: this._desConfig.user,
+			password: this._desConfig.password,
+			database: this._desConfig.database
+		})
 		var
     		datapumps = require('datapumps'),
     		Pump = datapumps.Pump,
     		MysqlMixin = datapumps.mixin.MysqlMixin,
     		pump  = new Pump();
-		var target = Object.keys(mapping).map(key => mapping[key])
+		const target = Object.keys(mapping).map(key => mapping[key])
 		//Construct query for LOADING phase
-		var insert_query = 'INSERT INTO ' + toTable + '(' + target.join() + ') VALUES (?)'	
+		const insert_query = 'INSERT INTO ' + toTable + '(' + target.join() + ') VALUES (?)'
+		//TODO: target.join kia dung voi anchor
+		const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable + '=?']
 		//Construct extract query
-		var extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?'
-		this._desConnection.beginTransaction((err) =>{
+		const extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?'
+		const check_existed_statement = 'SELECT '+ anchor_toTable+' FROM '+ toTable + ' WHERE '+anchor_toTable+' = ? '	
+		
+		desConnection.beginTransaction((err) =>{
 			//Transfer
 				pump
-					.from(this._srConnection.query(extract_query, timestamp).stream())
-					.mixin(MysqlMixin(this._desConnection))
+					.from(srConnection.query(extract_query, timestamp).stream())
+					.mixin(MysqlMixin(desConnection))
 					.process((student) => {
+						//Below is original version
 						/*return pump.query('SELECT idStudent FROM sinh_vien WHERE idStudent = ? ',student.idStudent)               
 								.then (([result, fields])=> {
 									if (result.length == 0) {
@@ -87,23 +80,32 @@ class DBSync {
 									}
 								
 						})*/
-							let values = Object.keys(mapping).map(element => student[element]) 
-							let tasks = this._tasks;
-							return pump.query(insert_query,values);
+							const values = Object.keys(mapping).map(element => student[element]) 
+							//let tasks = this._tasks;
+							return pump.query(check_existed_statement, student[anchor_fromTable])               
+								.then(([result,fields]) => {
+									if (result.length == 0) {
+										return pump.query(insert_query, values);
+									} else {
+										values.push(student[anchor_fromTable])
+										return pump.query.apply(pump, update_query.concat(values))
+									}
+								})
+							//return pump.query(insert_query,values);
 
 					})
 					.logErrorsToConsole()
 					.run()
 					.then(() => {
 						//pump.query('COMMIT')
-						this._desConnection.commit((err)=> {
+						desConnection.commit((err)=> {
 							if (err) {
-								this._desConnection.rollback(()=> {throw err;})
+								desConnection.rollback(()=> {throw err;})
 							}
 						})
 						
-						this._srConnection.end();//Close connection when finished
-						this._desConnection.end();
+						srConnection.end();//Close connection when finished
+						desConnection.end();
 						console.log("Done data sync");
 					})
 		})
@@ -119,7 +121,7 @@ class DBSync {
 		const result = graph.getSchema(this._srConfig, this._mappingPath);
 	}
 	syncTable() {
-		let mappingConfig = require(this._mappingPath + '/origin-config.json');
+		let mappingConfig = require(this._mappingPath + '/schema-config.json');
 		const result = graph.syncTable(this._srConfig, this._desConfig, mappingConfig);		
 	}
 	tableRelation() {
