@@ -1,6 +1,7 @@
 # db-synchronize
 Simple example:
-var DBSync = require('db-sync')
+```
+var DBSync = require('db-synchornize')
 var srConfig = { 
     host:"localhost",
     user: "root",
@@ -24,3 +25,4 @@ console.log('Mapping PATH: ' +tan._mappingPath)
 //tan.syncTable()//Copy all table to another database
 tan.sync()
 //tan.tableRelation()//generate table references config
+```
