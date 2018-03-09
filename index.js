@@ -4,6 +4,9 @@ const mysql = require('mysql');
 const mysql_promise = require('mysql2/promise');
 const graph = require('./lib/mapping-gen.js')
 const mappingGenerator = graph.compareDatabases
+const fs = require('fs')
+const os = require('os')
+const readLastLines = require('read-last-lines')
 
 class DBSync {
 	constructor(srConfig, desConfig){
@@ -16,6 +19,19 @@ class DBSync {
 		this._mappingPath = path;
 	}
 	sync () {
+		//This function get time from mysqlServer then write to log file
+		//The only parameter is pathToTimeLog: path to log file
+		const lastUpdateLogging = (pathToTimeLog) => {
+			return mysql_promise.createConnection(this._srConfig)
+					.then((conn) => {
+						conn.query('SELECT CURRENT_TIMESTAMP() FROM DUAL')	
+							.then(result => {
+								fs.appendFileSync(pathToTimeLog, require('moment')(result[0][0]['CURRENT_TIMESTAMP()']).format('YYYY-MM-DD HH:mm:ss') + os.EOL)
+								conn.end();
+							})
+
+					})
+		}
 		//var config = require(_mappingPath);
 		/*var config = {
     				"idStudent": "idStudent",
@@ -25,16 +41,36 @@ class DBSync {
 					}*/
 		const path = require('path')
 		//
-		const timestamp = '2018-01-11T15:36:19.000'
-		let mapping = require(path.join(this._mappingPath,'schema-config.json'))
-		mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+		//TODO doan nay moi viet
+		//const timestamp = '2018-01-11T15:36:19.000Z'
+		//const timestamp = '2018-03-09T04:47:28.000Z'
+		//const timestamp = '2018-01-11 15:36:19'
+		let timestamp;
+		const pathToTimeLog = path.join(this._mappingPath, 'last-sync.log');
+		if (fs.existsSync(pathToTimeLog)) {
+			readLastLines.read(pathToTimeLog,1)
+				.then((lines) => {
+					timestamp = lines.trim();
+					lastUpdateLogging(pathToTimeLog);
+					let mapping = require(path.join(this._mappingPath,'schema-config.json'))
+					mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+				})
+				.catch((err) => console.log(err))
+		} else {
+			timestamp = undefined;
+			lastUpdateLogging(pathToTimeLog);
+			let mapping = require(path.join(this._mappingPath,'schema-config.json'))
+			mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+		}
+		//TODO doan nay moi viet	
 		//this._syncDataTable(mapping[1],timestamp)
 		//
 		//const timestamp = '2018-01-11T15:36:19.000'
-		//this._syncDataTable(config, timestamp)	;
-		
-	}
-	_syncDataTable({fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
+			//this._syncDataTable(config, timestamp)	;
+			
+		}
+		_syncDataTable({fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
+			console.log(timestamp)
 		const srConnection = mysql.createConnection({
 			host: this._srConfig.host,
 			user: this._srConfig.user,
@@ -58,7 +94,12 @@ class DBSync {
 		//TODO: target.join kia dung voi anchor
 		const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable + '=?']
 		//Construct extract query
-		const extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?'
+		let extract_query;
+		if (!timestamp) {
+			extract_query = 'SELECT * FROM ' + fromTable
+		} else {
+			extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?'
+		}
 		const check_existed_statement = 'SELECT '+ anchor_toTable+' FROM '+ toTable + ' WHERE '+anchor_toTable+' = ? '	
 		
 		desConnection.beginTransaction((err) =>{
