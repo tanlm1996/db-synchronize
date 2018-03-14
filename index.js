@@ -41,10 +41,6 @@ class DBSync {
 					}*/
 		const path = require('path')
 		//
-		//TODO doan nay moi viet
-		//const timestamp = '2018-01-11T15:36:19.000Z'
-		//const timestamp = '2018-03-09T04:47:28.000Z'
-		//const timestamp = '2018-01-11 15:36:19'
 		let timestamp;
 		const pathToTimeLog = path.join(this._mappingPath, 'last-sync.log');
 		if (fs.existsSync(pathToTimeLog)) {
@@ -62,12 +58,7 @@ class DBSync {
 			let mapping = require(path.join(this._mappingPath,'schema-config.json'))
 			mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
 		}
-		//TODO doan nay moi viet	
 		//this._syncDataTable(mapping[1],timestamp)
-		//
-		//const timestamp = '2018-01-11T15:36:19.000'
-			//this._syncDataTable(config, timestamp)	;
-			
 		}
 		_syncDataTable({fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
 			console.log(timestamp)
@@ -101,9 +92,10 @@ class DBSync {
 			extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?'
 		}
 		const check_existed_statement = 'SELECT '+ anchor_toTable+' FROM '+ toTable + ' WHERE '+anchor_toTable+' = ? '	
-		
+	
 		desConnection.beginTransaction((err) =>{
 			//Transfer
+			desConnection.query('SET FOREIGN_KEY_CHECKS=0', () => {
 				pump
 					.from(srConnection.query(extract_query, timestamp).stream())
 					.mixin(MysqlMixin(desConnection))
@@ -146,9 +138,12 @@ class DBSync {
 						})
 						
 						srConnection.end();//Close connection when finished
-						desConnection.end();
+						//desConnection.query('SET FOREIGN_KEY_CHECKS=1',{
+							desConnection.end();
+						//})
 						console.log("Done data sync");
 					})
+		})
 		})
 	}
 	use(success,fail) {
