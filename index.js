@@ -7,6 +7,7 @@ const mappingGenerator = graph.compareDatabases
 const fs = require('fs')
 const os = require('os')
 const readLastLines = require('read-last-lines')
+const swap = require('./lib/swap.js')
 
 class DBSync {
 	constructor(srConfig, desConfig){
@@ -49,30 +50,41 @@ class DBSync {
 					timestamp = lines.trim();
 					lastUpdateLogging(pathToTimeLog);
 					let mapping = require(path.join(this._mappingPath,'schema-config.json'))
-					mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+					mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp))	
+					//Reverse sync
+					let mappingSwap = swap(mapping);
+					mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp))	
+					//console.log(mappingSwap)
+					//Reverse sync
 				})
 				.catch((err) => console.log(err))
 		} else {
 			timestamp = undefined;
 			lastUpdateLogging(pathToTimeLog);
 			let mapping = require(path.join(this._mappingPath,'schema-config.json'))
-			mapping.forEach((aConfig) => this._syncDataTable(aConfig,timestamp))	
+			mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp))	
+			//TODO should enable this below code for reverse
+			//Reverse sync
+			let mappingSwap = swap(mapping);
+			mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp))	
+			//console.log(mappingSwap)
+			//Reverse sync
+			//TODO end
 		}
-		//this._syncDataTable(mapping[1],timestamp)
+
 		}
-		_syncDataTable({fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
-			console.log(timestamp)
+		_syncDataTable(srDB, desDB, {fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
 		const srConnection = mysql.createConnection({
-			host: this._srConfig.host,
-			user: this._srConfig.user,
-			password: this._srConfig.password,
-			database: this._srConfig.database
+			host: srDB.host,
+			user: srDB.user,
+			password: srDB.password,
+			database: srDB.database
 		})
 		const desConnection = mysql.createConnection({
-			host: this._desConfig.host,
-			user: this._desConfig.user,
-			password: this._desConfig.password,
-			database: this._desConfig.database
+			host: desDB.host,
+			user: desDB.user,
+			password: desDB.password,
+			database: desDB.database
 		})
 		var
     		datapumps = require('datapumps'),
