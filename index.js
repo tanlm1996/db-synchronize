@@ -8,6 +8,7 @@ const fs = require('fs')
 const os = require('os')
 const readLastLines = require('read-last-lines')
 const swap = require('./lib/swap.js')
+const util = require('./lib/util.js')
 
 class DBSync {
 	constructor(srConfig, desConfig){
@@ -50,10 +51,10 @@ class DBSync {
 					timestamp = lines.trim();
 					lastUpdateLogging(pathToTimeLog);
 					let mapping = require(path.join(this._mappingPath,'schema-config.json'))
-					mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp))	
+					mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))	
 					//Reverse sync
 					let mappingSwap = swap(mapping);
-					mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp))	
+					mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))	
 					//console.log(mappingSwap)
 					//Reverse sync
 				})
@@ -62,18 +63,26 @@ class DBSync {
 			timestamp = undefined;
 			lastUpdateLogging(pathToTimeLog);
 			let mapping = require(path.join(this._mappingPath,'schema-config.json'))
-			mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp))	
+			mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))	
 			//TODO should enable this below code for reverse
 			//Reverse sync
 			let mappingSwap = swap(mapping);
-			mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp))	
+			mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))	
 			//console.log(mappingSwap)
 			//Reverse sync
 			//TODO end
 		}
 
 		}
-		_syncDataTable(srDB, desDB, {fromTable, toTable, mapping, anchor_fromTable, anchor_toTable}, timestamp) {
+		_syncDataTable(srDB, desDB, {fromTable, toTable, mapping, anchor_fromTable, anchor_toTable, transformation}, timestamp, direct) {
+		var transformDef = undefined
+		if (transformation) {
+			if (direct) {
+				transformDef = transformation.forth
+			} else {
+				transformDef = transformation.back
+			}
+		}
 		const srConnection = mysql.createConnection({
 			host: srDB.host,
 			user: srDB.user,
@@ -94,6 +103,7 @@ class DBSync {
 		const target = Object.keys(mapping).map(key => mapping[key])
 		//Construct query for LOADING phase
 		const insert_query = 'INSERT INTO ' + toTable + '(' + target.join() + ') VALUES (?)'
+		console.log(insert_query)
 		//TODO: target.join kia dung voi anchor
 		const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable + '=?']
 		//Construct extract query
@@ -111,28 +121,24 @@ class DBSync {
 				pump
 					.from(srConnection.query(extract_query, timestamp).stream())
 					.mixin(MysqlMixin(desConnection))
-					.process((student) => {
-						//Below is original version
-						/*return pump.query('SELECT idStudent FROM sinh_vien WHERE idStudent = ? ',student.idStudent)               
-								.then (([result, fields])=> {
-									if (result.length == 0) {
-										let values = Object.keys(mapping).map(element => student[element]) 
-										return pump.query(insert_query,
-														values)
+					.process((row) => {
+							if (transformDef) {
+								Object.keys(row).forEach(elem => {
+									if (transformDef[mapping[elem]]) {
+										row[elem] = util.transform(row, transformDef[mapping[elem]])
+									} else {
+										return
 									}
-									else {
-										return pump.query('UPDATE sv SET ten=?, diachi=?,lop=? WHERE idSV=?',student.name,student.address,student['class'],student.idStudent)
-									}
-								
-						})*/
-							const values = Object.keys(mapping).map(element => student[element]) 
+								})
+							}
+							const values = Object.keys(mapping).map(element => row[element]) 
 							//let tasks = this._tasks;
-							return pump.query(check_existed_statement, student[anchor_fromTable])               
+							return pump.query(check_existed_statement, row[anchor_fromTable])               
 								.then(([result,fields]) => {
 									if (result.length == 0) {
 										return pump.query(insert_query, values);
 									} else {
-										values.push(student[anchor_fromTable])
+										values.push(row[anchor_fromTable])
 										return pump.query.apply(pump, update_query.concat(values))
 									}
 								})
