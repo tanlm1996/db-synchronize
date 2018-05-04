@@ -78,12 +78,13 @@ class DBSync {
     _syncDataTable(srDB, desDB, {fromTable, toTable, mapping, anchor_fromTable, anchor_toTable, transformation}, timestamp, direct) {
         var transformDef = undefined
         if (transformation) {
-                                if (direct) {
-                                transformDef = transformation.forth
-                                } else {
-                                transformDef = transformation.back
-                                }
-                                }
+            if (direct) {
+                transformDef = transformation.forth
+            } else {
+                transformDef = transformation.back
+            }
+        }
+
         const srConnection = mysql.createConnection({
                                                         host: srDB.host,
                                                         user: srDB.user,
@@ -105,7 +106,7 @@ class DBSync {
         //Construct query for LOADING phase
         const insert_query = 'INSERT INTO ' + toTable + '(' + target.join() + ') VALUES (?)'
         //TODO: target.join kia dung voi anchor
-        const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable + '=?']
+        const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable.join('=? AND ')+'=?']
         //Construct extract query
         let extract_query;
         if (!timestamp) {
@@ -113,7 +114,7 @@ class DBSync {
         } else {
             extract_query = 'SELECT * FROM ' + fromTable + ' WHERE updatedAt > ?';
         }
-        const check_existed_statement = 'SELECT '+ anchor_toTable+' FROM '+ toTable + ' WHERE '+anchor_toTable+' = ? '
+        const check_existed_statement = ['SELECT ' + anchor_toTable + ' FROM ' + toTable + ' WHERE ' + anchor_toTable.join('=? AND ') + '=?'];
         desConnection.beginTransaction((err) =>{
             //Transfer
             desConnection.query('SET FOREIGN_KEY_CHECKS=0', () => {
@@ -134,15 +135,22 @@ class DBSync {
                         }
                         const values = Object.keys(mapping).map(element => row[element])
                         //let tasks = this._tasks;
-                        return pump.query(check_existed_statement, row[anchor_fromTable])
+                        let check_existed = check_existed_statement.slice(0);
+                        for (let i = 0; i < anchor_fromTable.length; i++) {
+                            check_existed.push(row[anchor_fromTable[i]])
+                        }
+                        return pump.query.apply(pump,check_existed)
                             .then(([result, fields]) => {
                                 if (result.length == 0) {
                                     return pump.query(insert_query, values);
                                 } else {
-                                    values.push(row[anchor_fromTable])
+                                    for (let i = 0; i < anchor_fromTable.length; i++) {
+                                        values.push(row[anchor_fromTable[i]]);
+                                    }
+                                    // values.push(row[anchor_fromTable])
                                     return pump.query.apply(pump, update_query.concat(values))
                                 }
-                            })
+                            });
                         //return pump.query(insert_query,values);
 
                     })
