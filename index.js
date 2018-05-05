@@ -106,7 +106,7 @@ class DBSync {
         //Construct query for LOADING phase
         const insert_query = 'INSERT INTO ' + toTable + '(' + target.join() + ') VALUES (?)'
         //TODO: target.join kia dung voi anchor
-        const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable.join('=? AND ')+'=?']
+        const update_query = ['UPDATE ' + toTable +' SET '+ target.join("=?, ") + '=? WHERE ' + anchor_toTable.join('=? AND ')+'=?' + ' AND updatedAt<?']
         //Construct extract query
         let extract_query;
         if (!timestamp) {
@@ -147,6 +147,7 @@ class DBSync {
                                     for (let i = 0; i < anchor_fromTable.length; i++) {
                                         values.push(row[anchor_fromTable[i]]);
                                     }
+                                    values.push(row.updatedAt);
                                     // values.push(row[anchor_fromTable])
                                     return pump.query.apply(pump, update_query.concat(values))
                                 }
