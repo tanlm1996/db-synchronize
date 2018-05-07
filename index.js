@@ -20,6 +20,60 @@ class DBSync {
 	set mappingPath(path) {
 		this._mappingPath = path;
 	}
+
+    unisync() {
+        //This function get time from mysqlServer then write to log file
+        //The only parameter is pathToTimeLog: path to log file
+        const lastUpdateLogging = (pathToTimeLog) => {
+            return mysql_promise.createConnection(this._srConfig)
+                .then((conn) => {
+                    conn.query('SELECT CURRENT_TIMESTAMP() FROM DUAL')
+                        .then(result => {
+                            fs.appendFileSync(pathToTimeLog, require('moment')(result[0][0]['CURRENT_TIMESTAMP()']).format('YYYY-MM-DD HH:mm:ss') + os.EOL)
+                            conn.end();
+                        })
+
+                })
+        }
+        //var config = require(_mappingPath);
+        /*var config = {
+                    "idStudent": "idStudent",
+                    "name": "name",
+                    "address": "address",
+                    "class": "class"
+                    }*/
+        const path = require('path')
+        //
+        let timestamp;
+        const pathToTimeLog = path.join(this._mappingPath, 'last-sync.log');
+        if (fs.existsSync(pathToTimeLog)) {
+            readLastLines.read(pathToTimeLog,1)
+                .then((lines) => {
+                    timestamp = lines.trim();
+                    lastUpdateLogging(pathToTimeLog);
+                    let mapping = require(path.join(this._mappingPath,'schema-config.json'))
+                    mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))
+                    //Reverse sync
+                    // let mappingSwap = swap(mapping);
+                    // mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))
+                    //console.log(mappingSwap)
+                    //Reverse sync
+                })
+                .catch((err) => console.log(err))
+        } else {
+            timestamp = undefined;
+            lastUpdateLogging(pathToTimeLog);
+            let mapping = require(path.join(this._mappingPath,'schema-config.json'))
+            mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))
+            //TODO should enable this below code for reverse
+            //Reverse sync
+            // let mappingSwap = swap(mapping);
+            // mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))
+            //console.log(mappingSwap)
+            //Reverse sync
+            //TODO end
+        }
+    }
 	sync () {
 		//This function get time from mysqlServer then write to log file
 		//The only parameter is pathToTimeLog: path to log file
@@ -73,7 +127,7 @@ class DBSync {
 			//TODO end
 		}
 
-		}
+    }
 
     _syncDataTable(srDB, desDB, {fromTable, toTable, mapping, anchor_fromTable, anchor_toTable, transformation}, timestamp, direct) {
         var transformDef = undefined
@@ -188,7 +242,7 @@ class DBSync {
 	}
 	syncTable() {
 		let mappingConfig = require(this._mappingPath + '/schema-config.json');
-		const result = graph.syncTable(this._srConfig, this._desConfig, mappingConfig);
+		return graph.syncTable(this._srConfig, this._desConfig, mappingConfig);
 	}
 	tableRelation() {
 		const result = graph.tableRelation(this._srConfig)
