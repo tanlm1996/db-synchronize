@@ -1,6 +1,7 @@
 'use strict'
 //Import
 const mysql = require('mysql');
+const clone = require('clone');
 const mysql_promise = require('mysql2/promise');
 const graph = require('./lib/mapping-gen.js')
 const mappingGenerator = graph.compareDatabases
@@ -107,7 +108,7 @@ class DBSync {
 					let mapping = require(path.join(this._mappingPath,'schema-config.json'))
 					mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))
 					//Reverse sync
-					let mappingSwap = swap(mapping);
+					let mappingSwap = swap(clone(mapping));
 					mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))
 					//console.log(mappingSwap)
 					//Reverse sync
@@ -120,7 +121,7 @@ class DBSync {
 			mapping.forEach((aConfig) => this._syncDataTable(this._srConfig, this._desConfig, aConfig,timestamp, true))
 			//TODO should enable this below code for reverse
 			//Reverse sync
-			let mappingSwap = swap(mapping);
+			let mappingSwap = swap(clone(mapping));
 			mappingSwap.forEach((aConfig) => this._syncDataTable(this._desConfig, this._srConfig, aConfig,timestamp, false))
 			//console.log(mappingSwap)
 			//Reverse sync
